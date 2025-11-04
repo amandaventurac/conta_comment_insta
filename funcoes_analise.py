@@ -12,7 +12,7 @@ import requests
 # =============================
 
 NOMES_URL = "https://raw.githubusercontent.com/amandaventurac/conta_comment_insta/main/nomes.csv"
-pattern_numero_w = r"\d{1,4}w"
+pattern_numero_w = r"\d{1,4}[wdh]"
 
 # =============================
 # 🔹 FUNÇÕES AUXILIARES DE PARSE HTML
