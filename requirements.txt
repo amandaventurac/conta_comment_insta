@@ -1,5 +1,7 @@
 streamlit
 pandas
-numpy
 matplotlib
 wordcloud
+beautifulsoup4
+requests
+lxml
