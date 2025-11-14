@@ -110,12 +110,14 @@ def limpar_texto(text):
 
 def limpeza_final(text):
     """
-    Remove padrões residuais do Instagram antes de exportar:
+    Remove padrões residuais do Instagram antes de exportar, incluindo:
     - '[n curtida(s) Responder Opções de comentários Curtir]'
+    - 'Responder Opções de comentários Curtir' solto
     """
-    # Regex robusta para remover o padrão inteiro
+    # Remove qualquer trecho que contenha "Responder Opções de comentários Curtir", 
+    # com ou sem número + 'curtida(s)' antes
     text = re.sub(
-        r"\[?\s*\d+\s+curtidas?\s+Responder\s+Opções\s+de\s+comentários\s+Curtir\s*\]?",
+        r"(?:\[\s*\d+\s+curtidas?\s*)?Responder\s+Opções\s+de\s+comentários\s+Curtir\s*\]?",
         "",
         text,
         flags=re.IGNORECASE
@@ -222,6 +224,9 @@ def processar_html(uploaded_html):
 
     # Aplicar limpeza final para remover padrões residuais do Instagram
     df['text'] = df['text'].apply(limpeza_final)
+
+    # 🚫 Remover linhas que começam com "Ocultar respostas"
+    df = df[~df['text'].str.strip().str.lower().str.startswith("ocultar respostas")]
 
     # Contagem de palavras
     palavras = []
