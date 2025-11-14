@@ -77,6 +77,12 @@ def limpeza_final_robusta(text):
         return None
     return limpar_texto(text)
 
+def limpeza_final_robusta_2(text):
+    if not text:
+        return None
+    if text.lower().endswith("Responder Opções de comentários"):
+        return None
+    return limpar_texto(text)
 # =============================
 # 🔹 DETECÇÃO DE GÊNERO
 # =============================
@@ -150,6 +156,7 @@ def processar_html(uploaded_html):
 
     # --- limpar e remover duplicatas ---
     df['text'] = df['text'].apply(limpeza_final_robusta)
+    df['text'] = df['text'].apply(limpeza_final_robusta_2)
     df = df[df['text'].notna()]
     df = df.drop_duplicates(subset=['username', 'text'])
 

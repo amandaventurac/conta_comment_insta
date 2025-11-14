@@ -37,7 +37,7 @@ def deduplicar_comentarios(df_antigo):
         texto_limpo = limpar_comentario(row['text'])
         if texto_limpo:
             chave = (row['username'], texto_limpo)
-            if chave not in vistos:
+            if chave not in vistos and (not texto_limpo.lower().endswith("Responder Opções de comentários")):
                 vistos.add(chave)
                 nova_linha = row.copy()
                 nova_linha['text'] = texto_limpo
