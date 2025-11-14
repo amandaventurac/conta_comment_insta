@@ -68,8 +68,6 @@ if fluxo.startswith("1️⃣"):
         comentarios_df, contagem_palavras_df, logs = processar_html(uploaded_html)
         st.success("✅ Processamento concluído!")
 
-        # Logs detalhados removidos
-
         # Limpeza e deduplicação
         comentarios_df = deduplicar_comentarios(comentarios_df)
 
@@ -110,23 +108,36 @@ else:
         # Deduplicar novamente para garantir consistência
         comentarios_df = deduplicar_comentarios(comentarios_df)
 
-        # Wordcloud baseada nos comentários limpos
+        # ------------------------
+        # WordCloud baseada no freq_df
+        # ------------------------
         st.subheader("☁️ Nuvem de Palavras")
-        texto_unico = " ".join(comentarios_df['text'].tolist())
-        wc_fig = gerar_wordcloud(texto_unico)
-        st.pyplot(wc_fig)
+        wc_fig = gerar_wordcloud(palavras_df)  # <-- passa freq_df correto
+        if wc_fig:
+            st.pyplot(wc_fig)
+        else:
+            st.warning("Não foi possível gerar a WordCloud. Verifique se há palavras válidas.")
 
+        # ------------------------
         # Frequência de palavras
+        # ------------------------
         st.subheader("📈 Frequência de Palavras")
-        freq_fig = gerar_freq_palavras(palavras_df)
-        st.pyplot(freq_fig)
+        if not palavras_df.empty:
+            freq_fig = gerar_freq_palavras(palavras_df)
+            st.pyplot(freq_fig)
+        else:
+            st.warning("Não há palavras suficientes para gerar o gráfico de frequência.")
 
+        # ------------------------
         # Contagem por gênero
+        # ------------------------
         st.subheader("🚻 Contagem de Comentários por Gênero")
         genero_contagem = comentarios_df['genero'].value_counts()
         st.bar_chart(genero_contagem)
 
+        # ------------------------
         # Resumo
+        # ------------------------
         st.markdown("### 🧾 Resumo da Análise")
         st.write(f"Total de comentários únicos: {len(comentarios_df)}")
         st.write(f"Distribuição de gênero: {genero_contagem.to_dict()}")
