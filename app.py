@@ -68,15 +68,17 @@ if fluxo.startswith("1️⃣"):
         comentarios_df, contagem_palavras_df, logs = processar_html(uploaded_html)
         st.success("✅ Processamento concluído!")
 
-        # Logs
-        with st.expander("Ver detalhes do processamento"):
-            st.text(logs)
+        # Logs detalhados removidos
 
         # Limpeza e deduplicação
         comentarios_df = deduplicar_comentarios(comentarios_df)
 
-        # Download XLS
+        # Contagem final imediatamente antes de salvar
+        total_comentarios = len(comentarios_df)
+
+        # Downloads XLS
         st.subheader("📊 Planilhas geradas")
+        st.write(f"Total de comentários únicos: {total_comentarios}")  # Contagem final
         st.download_button(
             "📥 Baixar comentários (XLS)",
             data=gerar_xls(comentarios_df),
@@ -90,9 +92,8 @@ if fluxo.startswith("1️⃣"):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-        # Visualização
+        # Visualização prévia
         st.subheader("Visualização prévia")
-        st.write(f"Total de comentários únicos: {len(comentarios_df)}")
         st.dataframe(comentarios_df.head())
 
 # ============= FLUXO 2 ============
