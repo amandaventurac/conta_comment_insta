@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
-import io
-import base64
+from io import BytesIO
 
 # ============= CONFIGURAÇÃO INICIAL =============
 st.set_page_config(page_title="Análise de Comentários", layout="wide")
@@ -15,6 +14,14 @@ from funcoes_analise import (
     gerar_freq_palavras,
 )
 
+# ============= FUNÇÃO NOVA: GERAR XLS =============
+def gerar_xls(df):
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="dados")
+    buffer.seek(0)
+    return buffer
+
 # ============= CABEÇALHO =============
 st.title("💬 Sistema de Análise de Comentários do Instagram")
 st.markdown("Este app possui **dois fluxos**: processamento inicial e análise final.")
@@ -22,7 +29,7 @@ st.markdown("Este app possui **dois fluxos**: processamento inicial e análise f
 # ============= SIDEBAR =============
 fluxo = st.sidebar.radio(
     "Selecione o fluxo:",
-    ["1️⃣ Processar HTML (gera CSVs)", "2️⃣ Analisar CSVs processados"],
+    ["1️⃣ Processar HTML (gera XLS)", "2️⃣ Analisar XLS processados"],
 )
 
 # ============= FLUXO 1 =============
@@ -34,39 +41,46 @@ if fluxo.startswith("1️⃣"):
     if uploaded_html:
         st.info("⏳ Processando... isso pode levar alguns segundos.")
 
-        # Chamada da sua função principal que gera os DataFrames
+        # Chamada da função principal que gera os DataFrames
         comentarios_df, contagem_palavras_df, logs = processar_html(uploaded_html)
 
         st.success("✅ Processamento concluído!")
 
-        # Mostrar logs e resumo
+        # ------- LOGS -------
         with st.expander("Ver detalhes do processamento"):
             st.text(logs)
 
-        # Oferecer os CSVs para download
-        def baixar_csv(df, filename):
-            csv = df.to_csv(index=False)
-            b64 = base64.b64encode(csv.encode()).decode()
-            href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">📥 Baixar {filename}</a>'
-            st.markdown(href, unsafe_allow_html=True)
-
+        # ------- DOWNLOADS EM XLS -------
         st.subheader("📊 Planilhas geradas")
-        baixar_csv(comentarios_df, "comentarios_por_genero.csv")
-        baixar_csv(contagem_palavras_df, "contagem_palavras.csv")
 
+        st.download_button(
+            "📥 Baixar comentários (XLS)",
+            data=gerar_xls(comentarios_df),
+            file_name="comentarios_por_genero.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        st.download_button(
+            "📥 Baixar contagem de palavras (XLS)",
+            data=gerar_xls(contagem_palavras_df),
+            file_name="contagem_palavras.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        # ------- PRÉVIA -------
         st.write("Visualização prévia:")
         st.dataframe(comentarios_df.head())
 
 # ============= FLUXO 2 =============
 else:
-    st.header("📊 Fluxo 2 — Análise final dos CSVs")
+    st.header("📊 Fluxo 2 — Análise final dos XLS")
 
-    comentarios_file = st.file_uploader("Envie o CSV de comentários", type=["csv"])
-    palavras_file = st.file_uploader("Envie o CSV de contagem de palavras", type=["csv"])
+    comentarios_file = st.file_uploader("Envie o XLS de comentários", type=["xlsx"])
+    palavras_file = st.file_uploader("Envie o XLS de contagem de palavras", type=["xlsx"])
 
     if comentarios_file and palavras_file:
-        comentarios_df = pd.read_csv(comentarios_file)
-        palavras_df = pd.read_csv(palavras_file)
+        comentarios_df = pd.read_excel(comentarios_file)
+        palavras_df = pd.read_excel(palavras_file)
 
         st.success("✅ Arquivos carregados com sucesso!")
 
@@ -85,7 +99,7 @@ else:
         genero_contagem = comentarios_df['genero'].value_counts()
         st.bar_chart(genero_contagem)
 
-        # --- Logs / resumo ---
+        # --- Resumo ---
         st.markdown("### 🧾 Resumo da Análise")
         st.write(f"Total de comentários: {len(comentarios_df)}")
         st.write(f"Distribuição de gênero:\n{genero_contagem.to_dict()}")
