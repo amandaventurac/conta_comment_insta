@@ -29,15 +29,22 @@ def limpeza_final_robusta(texto):
     texto = re.sub(r'\s+', ' ', texto).strip()
     return texto if texto else None
 
-# ============= FUNÇÕES NOVAS: GERAR XLS =============
-def gerar_xls_comentarios(df):
-    # Remove duplicatas antes de salvar
-    df = df.drop_duplicates(subset=['username', 'text']).reset_index(drop=True)
+# ============= FUNÇÃO DE EXPORTAÇÃO COM DEDUPLICAÇÃO MANUAL ============
+def gerar_xls_comentarios(df_antigo):
+    df_novo = pd.DataFrame(columns=df_antigo.columns)
+    vistos = set()
+    
+    for _, row in df_antigo.iterrows():
+        chave = (row['username'], row['text'])
+        if chave not in vistos:
+            vistos.add(chave)
+            df_novo = pd.concat([df_novo, pd.DataFrame([row])], ignore_index=True)
+    
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="dados")
+        df_novo.to_excel(writer, index=False, sheet_name="dados")
     buffer.seek(0)
-    return buffer
+    return buffer, df_novo  # retorna também o df_novo para usar na contagem de palavras
 
 def gerar_xls_palavras(df):
     buffer = BytesIO()
@@ -72,8 +79,8 @@ if fluxo.startswith("1️⃣"):
         comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
         comentarios_df = comentarios_df[comentarios_df['text'].notna()]
 
-        # ===== REMOVER DUPLICATAS =====
-        comentarios_df = comentarios_df.drop_duplicates(subset=['username', 'text']).reset_index(drop=True)
+        # ===== REMOVER DUPLICATAS MANUALMENTE =====
+        xls_buffer, comentarios_df = gerar_xls_comentarios(comentarios_df)
 
         # ===== RECONSTRUIR CONTAGEM DE PALAVRAS =====
         palavras = []
@@ -83,6 +90,7 @@ if fluxo.startswith("1️⃣"):
         contagem_palavras_df = pd.DataFrame(contagem.items(), columns=['palavra', 'frequencia']).sort_values(
             by='frequencia', ascending=False
         )
+        xls_buffer_palavras = gerar_xls_palavras(contagem_palavras_df)
 
         st.success("✅ Processamento concluído!")
 
@@ -95,14 +103,14 @@ if fluxo.startswith("1️⃣"):
 
         st.download_button(
             "📥 Baixar comentários (XLS)",
-            data=gerar_xls_comentarios(comentarios_df),
+            data=xls_buffer,
             file_name="comentarios_por_genero.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
         st.download_button(
             "📥 Baixar contagem de palavras (XLS)",
-            data=gerar_xls_palavras(contagem_palavras_df),
+            data=xls_buffer_palavras,
             file_name="contagem_palavras.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
@@ -127,10 +135,10 @@ else:
         comentarios_df = pd.read_excel(comentarios_file)
         palavras_df = pd.read_excel(palavras_file)
 
-        # ===== LIMPEZA FINAL E REMOÇÃO DE DUPLICATAS =====
+        # ===== LIMPEZA FINAL E REMOÇÃO DE DUPLICATAS MANUAL =====
         comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
         comentarios_df = comentarios_df[comentarios_df['text'].notna()]
-        comentarios_df = comentarios_df.drop_duplicates(subset=['username', 'text']).reset_index(drop=True)
+        _, comentarios_df = gerar_xls_comentarios(comentarios_df)  # reusa função para deduplicação manual
 
         st.success("✅ Arquivos carregados com sucesso!")
 
