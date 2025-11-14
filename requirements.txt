@@ -5,3 +5,4 @@ wordcloud
 beautifulsoup4
 requests
 lxml
+openpyxl

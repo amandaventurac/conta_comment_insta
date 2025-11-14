@@ -12,7 +12,10 @@ import requests
 # =============================
 
 NOMES_URL = "https://raw.githubusercontent.com/amandaventurac/conta_comment_insta/main/nomes.csv"
-pattern_numero_w = r"\d{1,4}[wdh]"
+
+# aceita: 10w, 3d, 12h, 2sem
+pattern_numero_w = r"\d{1,4}(?:w|d|h|sem)"
+
 
 # =============================
 # 🔹 FUNÇÕES AUXILIARES DE PARSE HTML
@@ -23,17 +26,19 @@ def detectar_mencoes(texto):
     mencoes = re.findall(r'@([A-Za-z0-9._]+)', texto)
     return mencoes if mencoes else []
 
+
 def extract_username_and_text(node):
     """Extrai username e texto de um bloco que parece comentário (não curtida)."""
     username = None
-    comment_text = ""
 
+    # detecta o username pelo primeiro <a href="/perfil/">
     for a in node.find_all("a", href=True):
         href = a["href"].strip()
         if re.match(r"^/[A-Za-z0-9._]+/$", href) and not href.startswith(('/explore/', '/reel/', '/p/', '/stories/')):
             username = href.strip("/")
             break
 
+    # junta todos os textos
     texts = []
     for t in node.find_all(text=True):
         clean = t.strip()
@@ -47,6 +52,7 @@ def extract_username_and_text(node):
     if any(x in full_text.lower() for x in ['curtiu', 'respondeu', 'ver mais', 'like']):
         return None, None
 
+    # remove repetição do username no começo
     if username and full_text.lower().startswith(username.lower()):
         comment_text = full_text[len(username):].strip(" :\n\t")
     else:
@@ -54,22 +60,30 @@ def extract_username_and_text(node):
 
     if username and comment_text:
         return username, comment_text
+
     return None, None
+
 
 def encontrar_secao_comentarios(soup):
     """Encontra a seção principal de comentários."""
+    # tenta primeiro <ul> estruturado
     for ul in soup.find_all('ul'):
         lis = ul.find_all('li')
         if len(lis) >= 3:
             perfis = sum(1 for li in lis if li.find('a', href=re.compile(r"^/[A-Za-z0-9._]+/$")))
             if perfis >= 3:
                 return ul
+
+    # tenta <div>
     for div in soup.find_all('div'):
         lis = div.find_all('li')
         perfis = sum(1 for li in lis if li.find('a', href=re.compile(r"^/[A-Za-z0-9._]+/$")))
         if perfis >= 3:
             return div
+
+    # fallback
     return soup
+
 
 def coletar_todos_nos_comentarios(node):
     """Recursivamente coleta comentários e replies."""
@@ -78,6 +92,7 @@ def coletar_todos_nos_comentarios(node):
         for li in child.find_all(['li', 'div'], recursive=False):
             nos.extend(coletar_todos_nos_comentarios(li))
     return nos
+
 
 # =============================
 # 🔹 LIMPEZA DE TEXTO
@@ -89,6 +104,7 @@ def limpar_texto(text):
     text = re.sub(r"\bVerified\b", "", text, flags=re.IGNORECASE)
     text = re.sub(pattern_numero_w, "", text)
     return re.sub(r'\s+', ' ', text).strip()
+
 
 # =============================
 # 🔹 DETECÇÃO DE GÊNERO
@@ -103,6 +119,7 @@ def carregar_base_nomes():
         print(f"⚠️ Erro ao carregar base de nomes: {e}")
         return pd.DataFrame(columns=['name', 'classification'])
 
+
 def detectar_genero(username, nomes_df):
     """Detecta o gênero a partir do username, comparando com a base de nomes."""
     if pd.isna(username) or not isinstance(username, str):
@@ -112,12 +129,11 @@ def detectar_genero(username, nomes_df):
     match = nomes_df[nomes_df['name'] == first_name]
 
     if not match.empty:
-        classificacao = match['classification'].iloc[0]
-        if classificacao == 'F':
-            return 'female'
-        elif classificacao == 'M':
-            return 'male'
+        c = match['classification'].iloc[0]
+        return 'female' if c == 'F' else 'male'
+
     return 'unknown'
+
 
 # =============================
 # 🔹 FUNÇÃO PRINCIPAL
@@ -143,13 +159,24 @@ def contar_comentarios_html_instagram(uploaded_html):
     for node in possiveis_comentarios:
         todos = coletar_todos_nos_comentarios(node)
         for n in todos:
+
             username, text = extract_username_and_text(n)
             if username and text:
+
                 text_limpo = limpar_texto(text)
                 if not text_limpo:
                     continue
 
                 mencoes = detectar_mencoes(text_limpo)
+                mencoes_lower = [m.lower() for m in mencoes]
+
+                # ========================================
+                # 🚫 NOVA REGRA: ignorar comentários
+                # onde o usuário menciona ele mesmo
+                # ========================================
+                if username.lower() in mencoes_lower:
+                    continue
+
                 chave = (username.lower(), text_limpo.lower())
                 if chave not in vistos:
                     vistos.add(chave)
@@ -161,18 +188,12 @@ def contar_comentarios_html_instagram(uploaded_html):
 
     return comentarios
 
+
 # =============================
 # 🔹 PIPELINE GERAL (STREAMLIT)
 # =============================
 
 def processar_html(uploaded_html):
-    """
-    Processa o HTML:
-    - Extrai comentários
-    - Detecta gênero
-    - Conta palavras
-    - Retorna DataFrames e logs
-    """
     logs = io.StringIO()
     logs.write("Iniciando processamento do HTML...\n")
 
@@ -180,7 +201,6 @@ def processar_html(uploaded_html):
     df = pd.DataFrame(comentarios)
     logs.write(f"Total de comentários extraídos: {len(df)}\n")
 
-    # Carregar base de nomes e detectar gênero
     nomes_df = carregar_base_nomes()
     df['genero'] = df['username'].apply(lambda u: detectar_genero(u, nomes_df))
     logs.write("Gênero detectado para cada usuário.\n")
@@ -200,27 +220,36 @@ def processar_html(uploaded_html):
 
     return df, freq_df, logs.getvalue()
 
+
+# =============================
+# 🔹 SALVAR EM EXCEL (robusto)
+# =============================
+
+def salvar_excel(df, caminho):
+    """
+    Salva DataFrame em XLSX com openpyxl.
+    → Não quebra acentos
+    → Excel abre direto
+    → Sem texto para colunas
+    """
+    df.to_excel(caminho, index=False, engine="openpyxl")
+
+
 # =============================
 # 🔹 VISUALIZAÇÕES
 # =============================
 
 def gerar_wordcloud(palavras_df):
-    """Gera uma nuvem de palavras a partir do DataFrame de frequência (sem duplicação)."""
     freq_dict = dict(zip(palavras_df['palavra'], palavras_df['frequencia']))
-    
-    wc = WordCloud(
-        width=800,
-        height=400,
-        background_color="white"
-    ).generate_from_frequencies(freq_dict)
+    wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(freq_dict)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.imshow(wc, interpolation="bilinear")
     ax.axis("off")
     return fig
 
+
 def gerar_freq_palavras(palavras_df, top_n=20):
-    """Gera gráfico de barras com as palavras mais frequentes."""
     top = palavras_df.head(top_n)
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.barh(top['palavra'][::-1], top['frequencia'][::-1])
