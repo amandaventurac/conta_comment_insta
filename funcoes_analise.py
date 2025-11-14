@@ -14,7 +14,7 @@ import requests
 NOMES_URL = "https://raw.githubusercontent.com/amandaventurac/conta_comment_insta/main/nomes.csv"
 
 # aceita: 10w, 3d, 12h, 2sem
-pattern_numero_w = r"\d{1,4}(?:w|d|h|sem)"
+pattern_numero_w = r"\d{1,4}(?:w|d|h|sem|Responder Opções de comentários)"
 
 
 # =============================
