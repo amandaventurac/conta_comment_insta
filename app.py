@@ -14,8 +14,20 @@ from funcoes_analise import (
     processar_html,        # gera dfs
     gerar_wordcloud,
     gerar_freq_palavras,
-    limpeza_final_robusta, # função de limpeza final robusta
 )
+
+# ============= FUNÇÕES DE LIMPEZA =============
+def limpeza_final_robusta(texto):
+    if not texto or not isinstance(texto, str):
+        return None
+    # remove [n curtida(s) Responder Opções de comentários Curtir]
+    texto = re.sub(r'\d+\s+curtida[s]?\s+Responder Opções de comentários\s+Curtir', '', texto, flags=re.IGNORECASE)
+    texto = re.sub(r'Responder Opções de comentários\s+Curtir', '', texto, flags=re.IGNORECASE)
+    # remove 'Ocultar respostas' no início
+    texto = re.sub(r'^Ocultar respostas\s+', '', texto, flags=re.IGNORECASE)
+    # limpa múltiplos espaços
+    texto = re.sub(r'\s+', ' ', texto).strip()
+    return texto if texto else None
 
 # ============= FUNÇÕES NOVAS: GERAR XLS =============
 def gerar_xls_comentarios(df):
@@ -28,7 +40,6 @@ def gerar_xls_comentarios(df):
     return buffer
 
 def gerar_xls_palavras(df):
-    # Para contagem de palavras, só salvamos direto
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="dados")
@@ -57,9 +68,11 @@ if fluxo.startswith("1️⃣"):
         # Chamada da função principal que gera os DataFrames
         comentarios_df, contagem_palavras_df, logs = processar_html(uploaded_html)
 
-        # ===== LIMPEZA FINAL E REMOÇÃO DE DUPLICATAS =====
+        # ===== LIMPEZA FINAL =====
         comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
         comentarios_df = comentarios_df[comentarios_df['text'].notna()]
+
+        # ===== REMOVER DUPLICATAS =====
         comentarios_df = comentarios_df.drop_duplicates(subset=['username', 'text']).reset_index(drop=True)
 
         # ===== RECONSTRUIR CONTAGEM DE PALAVRAS =====
@@ -114,7 +127,9 @@ else:
         comentarios_df = pd.read_excel(comentarios_file)
         palavras_df = pd.read_excel(palavras_file)
 
-        # ===== REMOVER DUPLICATAS NOVAMENTE =====
+        # ===== LIMPEZA FINAL E REMOÇÃO DE DUPLICATAS =====
+        comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
+        comentarios_df = comentarios_df[comentarios_df['text'].notna()]
         comentarios_df = comentarios_df.drop_duplicates(subset=['username', 'text']).reset_index(drop=True)
 
         st.success("✅ Arquivos carregados com sucesso!")
