@@ -3,6 +3,8 @@ import re
 from bs4 import BeautifulSoup
 from collections import Counter
 import io
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
 
 # =============================
 # 🔹 CONFIGURAÇÕES INICIAIS
@@ -65,8 +67,7 @@ def limpar_texto(text):
     text = re.sub(r"\bReply\b", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\bVerified\b", "", text, flags=re.IGNORECASE)
     text = re.sub(pattern_numero_w, "", text)
-    # remove padrões tipo "[1 curtida Responder Opções de comentários Curtir]"
-    text = re.sub(r"\[\d+\s+curtid[as]* Responder Opções de comentários(?: Curtir)?\]", "", text)
+    text = re.sub(r'\[\d+\s+curtid[as]* Responder Opções de comentários(?: Curtir)?\]', "", text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text if text else None
 
@@ -83,6 +84,7 @@ def limpeza_final_robusta_2(text):
     if text.lower().endswith("Responder Opções de comentários"):
         return None
     return limpar_texto(text)
+
 # =============================
 # 🔹 DETECÇÃO DE GÊNERO
 # =============================
@@ -184,6 +186,18 @@ def salvar_excel(df, caminho):
 # 🔹 VISUALIZAÇÕES
 # =============================
 def gerar_wordcloud(palavras_df):
+    # 🔹 DEBUG: checar tipo e conteúdo
+    print("Debug: tipo de palavras_df =", type(palavras_df))
+    print("Debug: colunas disponíveis =", palavras_df.columns if hasattr(palavras_df, 'columns') else "N/A")
+    print("Debug: primeiras linhas =", palavras_df.head() if hasattr(palavras_df, 'head') else "N/A")
+
+    if palavras_df is None or palavras_df.empty:
+        print("⚠️ DataFrame de palavras vazio. Não é possível gerar WordCloud.")
+        return None
+    if 'palavra' not in palavras_df.columns or 'frequencia' not in palavras_df.columns:
+        print("⚠️ Colunas 'palavra' ou 'frequencia' não existem no DataFrame.")
+        return None
+
     freq_dict = dict(zip(palavras_df['palavra'], palavras_df['frequencia']))
     wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(freq_dict)
     fig, ax = plt.subplots(figsize=(10, 5))
