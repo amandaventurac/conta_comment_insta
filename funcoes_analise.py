@@ -97,12 +97,20 @@ def coletar_todos_nos_comentarios(node):
 # =============================
 
 def limpar_texto(text):
-    """Remove Reply, Verified, padrões de número+w e '[n curtida(s) Responder Opções de comentários]'."""
+    """Remove Reply, Verified, padrões de número+w e '[n curtida(s) Responder Opções de comentários]' mais flexível."""
     text = re.sub(r"\bReply\b", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\bVerified\b", "", text, flags=re.IGNORECASE)
     text = re.sub(pattern_numero_w, "", text)
-    # Remove "[n curtida Responder Opções de comentários]" ou "[n curtidas Responder Opções de comentários]"
-    text = re.sub(r"\[\d+\s+curtidas?\s+Responder Opções de comentários\]", "", text, flags=re.IGNORECASE)
+    
+    # Regex flexível para remover [n curtida(s) Responder Opções de comentários]
+    text = re.sub(
+        r"\[\s*\d+\s+curtidas?\s+Responder\s+Opções\s+de\s+comentários\s*\]", 
+        "", 
+        text, 
+        flags=re.IGNORECASE
+    )
+    
+    # Remove múltiplos espaços
     return re.sub(r'\s+', ' ', text).strip()
 
 
