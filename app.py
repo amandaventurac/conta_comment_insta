@@ -4,60 +4,60 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from io import BytesIO
 import re
-from collections import Counter
 
 # ============= CONFIGURAÇÃO INICIAL =============
 st.set_page_config(page_title="Análise de Comentários", layout="wide")
 
-# Importar suas funções do notebook adaptadas
+# Importar funções do notebook adaptadas
 from funcoes_analise import (
-    processar_html,        # gera dfs
+    processar_html,   # gera dfs
     gerar_wordcloud,
     gerar_freq_palavras,
 )
 
-# ============= FUNÇÕES DE LIMPEZA =============
-def limpeza_final_robusta(texto):
+# ============= FUNÇÃO NOVA: LIMPEZA DE COMENTÁRIOS ============
+def limpar_comentario(texto):
     if not texto or not isinstance(texto, str):
         return None
-    # remove [n curtida(s) Responder Opções de comentários Curtir]
+    # remove sufixos de curtidas e responder/opções
     texto = re.sub(r'\d+\s+curtida[s]?\s+Responder Opções de comentários\s+Curtir', '', texto, flags=re.IGNORECASE)
     texto = re.sub(r'Responder Opções de comentários\s+Curtir', '', texto, flags=re.IGNORECASE)
     # remove 'Ocultar respostas' no início
     texto = re.sub(r'^Ocultar respostas\s+', '', texto, flags=re.IGNORECASE)
-    # limpa múltiplos espaços
+    # remove múltiplos espaços
     texto = re.sub(r'\s+', ' ', texto).strip()
     return texto if texto else None
 
-# ============= FUNÇÃO DE EXPORTAÇÃO COM DEDUPLICAÇÃO MANUAL ============
-def gerar_xls_comentarios(df_antigo):
+# ============= FUNÇÃO DE DEDUPLICAÇÃO ============
+def deduplicar_comentarios(df_antigo):
     df_novo = pd.DataFrame(columns=df_antigo.columns)
     vistos = set()
-    
-    for _, row in df_antigo.iterrows():
-        chave = (row['username'], row['text'])
-        if chave not in vistos:
-            vistos.add(chave)
-            df_novo = pd.concat([df_novo, pd.DataFrame([row])], ignore_index=True)
-    
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df_novo.to_excel(writer, index=False, sheet_name="dados")
-    buffer.seek(0)
-    return buffer, df_novo  # retorna também o df_novo para usar na contagem de palavras
 
-def gerar_xls_palavras(df):
+    for _, row in df_antigo.iterrows():
+        texto_limpo = limpar_comentario(row['text'])
+        if texto_limpo:
+            chave = (row['username'], texto_limpo)
+            if chave not in vistos:
+                vistos.add(chave)
+                nova_linha = row.copy()
+                nova_linha['text'] = texto_limpo
+                df_novo = pd.concat([df_novo, pd.DataFrame([nova_linha])], ignore_index=True)
+
+    return df_novo
+
+# ============= FUNÇÃO NOVA: GERAR XLS ============
+def gerar_xls(df):
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="dados")
     buffer.seek(0)
     return buffer
 
-# ============= CABEÇALHO =============
+# ============= CABEÇALHO ============
 st.title("💬 Sistema de Análise de Comentários do Instagram")
 st.markdown("Este app possui **dois fluxos**: processamento inicial e análise final.")
 
-# ============= SIDEBAR =============
+# ============= SIDEBAR ============
 fluxo = st.sidebar.radio(
     "Selecione o fluxo:",
     ["1️⃣ Processar HTML (gera XLS)", "2️⃣ Analisar XLS processados"],
@@ -75,42 +75,28 @@ if fluxo.startswith("1️⃣"):
         # Chamada da função principal que gera os DataFrames
         comentarios_df, contagem_palavras_df, logs = processar_html(uploaded_html)
 
-        # ===== LIMPEZA FINAL ANTES DA DEDUPLICAÇÃO =====
-        comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
-        comentarios_df = comentarios_df[comentarios_df['text'].notna()]
-
-        # ===== REMOVER DUPLICATAS MANUALMENTE =====
-        xls_buffer, comentarios_df = gerar_xls_comentarios(comentarios_df)
-
-        # ===== RECONSTRUIR CONTAGEM DE PALAVRAS =====
-        palavras = []
-        for t in comentarios_df['text']:
-            palavras.extend(re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', t.lower()))
-        contagem = Counter(palavras)
-        contagem_palavras_df = pd.DataFrame(contagem.items(), columns=['palavra', 'frequencia']).sort_values(
-            by='frequencia', ascending=False
-        )
-        xls_buffer_palavras = gerar_xls_palavras(contagem_palavras_df)
-
         st.success("✅ Processamento concluído!")
 
         # ------- LOGS -------
         with st.expander("Ver detalhes do processamento"):
             st.text(logs)
 
+        # ------- LIMPEZA E DEDUPLICAÇÃO -------
+        comentarios_df = deduplicar_comentarios(comentarios_df)
+
         # ------- DOWNLOADS EM XLS -------
         st.subheader("📊 Planilhas geradas")
 
         st.download_button(
             "📥 Baixar comentários (XLS)",
-            data=xls_buffer,
+            data=gerar_xls(comentarios_df),
             file_name="comentarios_por_genero.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
         st.download_button(
             "📥 Baixar contagem de palavras (XLS)",
-            data=xls_buffer_palavras,
+            data=gerar_xls(contagem_palavras_df),
             file_name="contagem_palavras.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
@@ -118,11 +104,6 @@ if fluxo.startswith("1️⃣"):
         # ------- PRÉVIA -------
         st.write("Visualização prévia:")
         st.dataframe(comentarios_df.head())
-
-        # ===== RESUMO CORRETO =====
-        st.markdown("### 🧾 Resumo do Processamento")
-        st.write(f"Total de comentários válidos e únicos: {len(comentarios_df)}")
-        st.write(f"Total de palavras únicas: {contagem_palavras_df['palavra'].nunique()}")
 
 # ============= FLUXO 2 =============
 else:
@@ -135,12 +116,10 @@ else:
         comentarios_df = pd.read_excel(comentarios_file)
         palavras_df = pd.read_excel(palavras_file)
 
-        # ===== LIMPEZA FINAL E REMOÇÃO DE DUPLICATAS MANUAL =====
-        comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
-        comentarios_df = comentarios_df[comentarios_df['text'].notna()]
-        _, comentarios_df = gerar_xls_comentarios(comentarios_df)  # reusa função para deduplicação manual
-
         st.success("✅ Arquivos carregados com sucesso!")
+
+        # ------- LIMPEZA E DEDUPLICAÇÃO NOVAMENTE -------
+        comentarios_df = deduplicar_comentarios(comentarios_df)
 
         # --- Wordcloud ---
         st.subheader("☁️ Nuvem de Palavras")
@@ -159,6 +138,5 @@ else:
 
         # --- Resumo ---
         st.markdown("### 🧾 Resumo da Análise")
-        st.write(f"Total de comentários válidos: {len(comentarios_df)}")
+        st.write(f"Total de comentários: {len(comentarios_df)}")
         st.write(f"Distribuição de gênero:\n{genero_contagem.to_dict()}")
-        st.write(f"Total de palavras únicas: {palavras_df['palavra'].nunique()}")
