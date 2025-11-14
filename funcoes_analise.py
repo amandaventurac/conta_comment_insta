@@ -101,7 +101,6 @@ def limpar_texto(text):
     text = re.sub(r"\bReply\b", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\bVerified\b", "", text, flags=re.IGNORECASE)
     text = re.sub(pattern_numero_w, "", text)
-    # Remove múltiplos espaços
     return re.sub(r'\s+', ' ', text).strip()
 
 # =============================
@@ -206,7 +205,7 @@ def contar_comentarios_html_instagram(uploaded_html):
                 mencoes = detectar_mencoes(text_limpo)
                 mencoes_lower = [m.lower() for m in mencoes]
 
-                # 🚫 Ignorar comentários onde o usuário menciona ele mesmo
+                # Ignorar comentários onde o usuário menciona ele mesmo
                 if username.lower() in mencoes_lower:
                     continue
 
@@ -243,6 +242,9 @@ def processar_html(uploaded_html):
 
     # Remover linhas que ficaram vazias após limpeza ou 'Ocultar respostas'
     df = df[df['text'].notna()]
+
+    # Remover duplicatas após limpeza
+    df = df.drop_duplicates(subset=['username', 'text'])
 
     # Contagem de palavras
     palavras = []
