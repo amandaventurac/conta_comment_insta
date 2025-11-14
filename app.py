@@ -75,7 +75,7 @@ if fluxo.startswith("1️⃣"):
         # Chamada da função principal que gera os DataFrames
         comentarios_df, contagem_palavras_df, logs = processar_html(uploaded_html)
 
-        # ===== LIMPEZA FINAL =====
+        # ===== LIMPEZA FINAL ANTES DA DEDUPLICAÇÃO =====
         comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
         comentarios_df = comentarios_df[comentarios_df['text'].notna()]
 
