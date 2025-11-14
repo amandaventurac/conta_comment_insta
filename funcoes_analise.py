@@ -105,25 +105,41 @@ def limpar_texto(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 # =============================
-# 🔹 LIMPEZA FINAL (ANTES DO XLS)
+# 🔹 LIMPEZA FINAL ROBUSTA
 # =============================
 
-def limpeza_final(text):
+def limpeza_final_robusta(text):
     """
-    Remove padrões residuais do Instagram antes de exportar, incluindo:
-    - '[n curtida(s) Responder Opções de comentários Curtir]'
-    - 'Responder Opções de comentários Curtir' solto
+    Limpeza final robusta para comentários do Instagram.
+    
+    - Exclui comentários que começam com "Ocultar respostas"
+    - Remove padrões residuais do Instagram
+    - Se, após limpeza, o comentário ficar vazio, retorna None
     """
-    # Remove qualquer trecho que contenha "Responder Opções de comentários Curtir", 
-    # com ou sem número + 'curtida(s)' antes
+    if not text:
+        return None
+
+    # 1️⃣ Excluir completamente comentários que começam com "Ocultar respostas"
+    if re.match(r'^\s*Ocultar\s+respostas', text, flags=re.IGNORECASE):
+        return None
+
+    # 2️⃣ Remove padrões residuais de curtidas e respostas do Instagram
     text = re.sub(
-        r"(?:\[\s*\d+\s+curtidas?\s*)?Responder\s+Opções\s+de\s+comentários\s+Curtir\s*\]?",
-        "",
+        r'(?:\[\s*\d+\s+curtidas?\s*\]\s*)?'      # [n curtida(s)] opcional
+        r'(?:\d+\s*[wdh]|sem)?\s*'                # 1d, 3h, 2sem opcional
+        r'Responder\s+Opções\s+de\s+comentários\s+Curtir',  # padrão fixo
+        '',
         text,
         flags=re.IGNORECASE
     )
-    # Remove múltiplos espaços e quebras de linha
+
+    # 3️⃣ Limpeza final de espaços e quebras de linha
     text = re.sub(r'\s+', ' ', text).strip()
+
+    # 4️⃣ Se ficar vazio após limpeza, retornar None
+    if not text:
+        return None
+
     return text
 
 # =============================
@@ -222,11 +238,11 @@ def processar_html(uploaded_html):
     df['genero'] = df['username'].apply(lambda u: detectar_genero(u, nomes_df))
     logs.write("Gênero detectado para cada usuário.\n")
 
-    # Aplicar limpeza final para remover padrões residuais do Instagram
-    df['text'] = df['text'].apply(limpeza_final)
+    # Aplicar limpeza final robusta
+    df['text'] = df['text'].apply(limpeza_final_robusta)
 
-    # 🚫 Remover linhas que começam com "Ocultar respostas"
-    df = df[~df['text'].str.strip().str.lower().str.startswith("ocultar respostas")]
+    # Remover linhas que ficaram vazias após limpeza ou 'Ocultar respostas'
+    df = df[df['text'].notna()]
 
     # Contagem de palavras
     palavras = []
