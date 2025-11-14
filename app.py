@@ -19,6 +19,8 @@ from funcoes_analise import (
 
 # ============= FUNÇÃO NOVA: GERAR XLS =============
 def gerar_xls(df):
+    # Remove duplicatas antes de salvar
+    df = df.drop_duplicates(subset=['username', 'text']).reset_index(drop=True)
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="dados")
@@ -45,14 +47,14 @@ if fluxo.startswith("1️⃣"):
         st.info("⏳ Processando... isso pode levar alguns segundos.")
 
         # Chamada da função principal que gera os DataFrames
-        comentarios_df, _, logs = processar_html(uploaded_html)
+        comentarios_df, contagem_palavras_df, logs = processar_html(uploaded_html)
 
-        # ===== APLICAR LIMPEZA FINAL ROBUSTA E REMOVER DUPLICATAS =====
+        # ===== LIMPEZA FINAL E REMOÇÃO DE DUPLICATAS =====
         comentarios_df['text'] = comentarios_df['text'].apply(limpeza_final_robusta)
         comentarios_df = comentarios_df[comentarios_df['text'].notna()]
-        comentarios_df = comentarios_df.drop_duplicates(subset=['username', 'text'])
+        comentarios_df = comentarios_df.drop_duplicates(subset=['username', 'text']).reset_index(drop=True)
 
-        # ===== RECONTAR PALAVRAS APENAS DOS COMENTÁRIOS VÁLIDOS =====
+        # ===== RECONSTRUIR CONTAGEM DE PALAVRAS =====
         palavras = []
         for t in comentarios_df['text']:
             palavras.extend(re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', t.lower()))
@@ -88,9 +90,9 @@ if fluxo.startswith("1️⃣"):
         st.write("Visualização prévia:")
         st.dataframe(comentarios_df.head())
 
-        # ===== ATUALIZAR NÚMERO DE COMENTÁRIOS E PALAVRAS =====
+        # ===== RESUMO CORRETO =====
         st.markdown("### 🧾 Resumo do Processamento")
-        st.write(f"Total de comentários válidos após limpeza: {len(comentarios_df)}")
+        st.write(f"Total de comentários válidos e únicos: {len(comentarios_df)}")
         st.write(f"Total de palavras únicas: {contagem_palavras_df['palavra'].nunique()}")
 
 # ============= FLUXO 2 =============
@@ -123,6 +125,6 @@ else:
 
         # --- Resumo ---
         st.markdown("### 🧾 Resumo da Análise")
-        st.write(f"Total de comentários: {len(comentarios_df)}")
+        st.write(f"Total de comentários válidos: {len(comentarios_df)}")
         st.write(f"Distribuição de gênero:\n{genero_contagem.to_dict()}")
         st.write(f"Total de palavras únicas: {palavras_df['palavra'].nunique()}")
