@@ -97,22 +97,32 @@ def coletar_todos_nos_comentarios(node):
 # =============================
 
 def limpar_texto(text):
-    """Remove Reply, Verified, padrões de número+w e '[n curtida(s) Responder Opções de comentários]' mais flexível."""
+    """Remove Reply, Verified e padrões de número+w."""
     text = re.sub(r"\bReply\b", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\bVerified\b", "", text, flags=re.IGNORECASE)
     text = re.sub(pattern_numero_w, "", text)
-    
-    # Regex flexível para remover [n curtida(s) Responder Opções de comentários]
-    text = re.sub(
-        r"\[\s*\d+\s+curtidas?\s+Responder\s+Opções\s+de\s+comentários\s*\]", 
-        "", 
-        text, 
-        flags=re.IGNORECASE
-    )
-    
     # Remove múltiplos espaços
     return re.sub(r'\s+', ' ', text).strip()
 
+# =============================
+# 🔹 LIMPEZA FINAL (ANTES DO XLS)
+# =============================
+
+def limpeza_final(text):
+    """
+    Remove padrões residuais do Instagram antes de exportar:
+    - '[n curtida(s) Responder Opções de comentários Curtir]'
+    """
+    # Regex robusta para remover o padrão inteiro
+    text = re.sub(
+        r"\[?\s*\d+\s+curtidas?\s+Responder\s+Opções\s+de\s+comentários\s+Curtir\s*\]?",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+    # Remove múltiplos espaços e quebras de linha
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 # =============================
 # 🔹 DETECÇÃO DE GÊNERO
@@ -178,10 +188,7 @@ def contar_comentarios_html_instagram(uploaded_html):
                 mencoes = detectar_mencoes(text_limpo)
                 mencoes_lower = [m.lower() for m in mencoes]
 
-                # ========================================
-                # 🚫 NOVA REGRA: ignorar comentários
-                # onde o usuário menciona ele mesmo
-                # ========================================
+                # 🚫 Ignorar comentários onde o usuário menciona ele mesmo
                 if username.lower() in mencoes_lower:
                     continue
 
@@ -212,6 +219,9 @@ def processar_html(uploaded_html):
     nomes_df = carregar_base_nomes()
     df['genero'] = df['username'].apply(lambda u: detectar_genero(u, nomes_df))
     logs.write("Gênero detectado para cada usuário.\n")
+
+    # Aplicar limpeza final para remover padrões residuais do Instagram
+    df['text'] = df['text'].apply(limpeza_final)
 
     # Contagem de palavras
     palavras = []
