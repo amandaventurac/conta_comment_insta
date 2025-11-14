@@ -14,8 +14,7 @@ import requests
 NOMES_URL = "https://raw.githubusercontent.com/amandaventurac/conta_comment_insta/main/nomes.csv"
 
 # aceita: 10w, 3d, 12h, 2sem
-pattern_numero_w = r"\d{1,4}(?:w|d|h|sem|Responder Opções de comentários)"
-
+pattern_numero_w = r"\d{1,4}(?:w|d|h|sem)"
 
 # =============================
 # 🔹 FUNÇÕES AUXILIARES DE PARSE HTML
@@ -93,16 +92,17 @@ def coletar_todos_nos_comentarios(node):
             nos.extend(coletar_todos_nos_comentarios(li))
     return nos
 
-
 # =============================
 # 🔹 LIMPEZA DE TEXTO
 # =============================
 
 def limpar_texto(text):
-    """Remove Reply, Verified e padrões de número+w."""
+    """Remove Reply, Verified, padrões de número+w e '[n curtida(s) Responder Opções de comentários]'."""
     text = re.sub(r"\bReply\b", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\bVerified\b", "", text, flags=re.IGNORECASE)
     text = re.sub(pattern_numero_w, "", text)
+    # Remove "[n curtida Responder Opções de comentários]" ou "[n curtidas Responder Opções de comentários]"
+    text = re.sub(r"\[\d+\s+curtidas?\s+Responder Opções de comentários\]", "", text, flags=re.IGNORECASE)
     return re.sub(r'\s+', ' ', text).strip()
 
 
